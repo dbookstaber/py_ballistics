@@ -106,9 +106,10 @@ class TrajectoryCalc:
         :param step: proposed step size
         :return: step size for calculations (in feet)
         """
-        if step == 0:
-            return Settings.get_max_calc_step_size() / 2.0
-        return min(step, Settings.get_max_calc_step_size()) / 2.0
+        return 1/10000  # Step in seconds
+        # if step == 0:
+        #     return Settings.get_max_calc_step_size() / 2.0
+        # return min(step, Settings.get_max_calc_step_size()) / 2.0
 
     def trajectory(self, shot_info: Shot, max_range: Distance, dist_step: Distance,
                    extra_data: bool = False):
@@ -150,7 +151,8 @@ class TrajectoryCalc:
 
         zero_distance = math.cos(self.look_angle) * (distance >> Distance.Foot)
         height_at_zero = math.sin(self.look_angle) * (distance >> Distance.Foot)
-        maximum_range = zero_distance - 1.5*self.calc_step
+        #maximum_range = zero_distance - 1.5*self.calc_step
+        maximum_range = zero_distance
         self.barrel_azimuth = 0.0
         self.barrel_elevation = math.atan(height_at_zero / zero_distance)
         self.twist = 0
@@ -171,6 +173,7 @@ class TrajectoryCalc:
         if zero_finding_error > cZeroFindingAccuracy:
             # TODO: Don't raise exception; return a tuple that contains the error so caller can check how close zero is
             raise Exception(f'Zero vertical error {zero_finding_error} feet, after {iterations_count} iterations.')
+        print(f'Zero distance = {t.distance << Distance.Foot}; iterations={iterations_count}')
         return Angular.Radian(self.barrel_elevation)
 
     def _trajectory(self, shot_info: Shot, maximum_range: float, step: float,
@@ -184,6 +187,7 @@ class TrajectoryCalc:
         ranges_length = int(maximum_range / step) + 1
         time = 0
         previous_mach = .0
+        previous_range = .0
         drag = 0
 
         len_winds = len(shot_info.winds)
@@ -212,7 +216,8 @@ class TrajectoryCalc:
             seen_zero |= TrajFlag.ZERO_DOWN  # We're below and pointing down from look angle; no zeroes!
 
         #region Trajectory Loop
-        while range_vector.x <= maximum_range + self.calc_step:
+        #while range_vector.x <= maximum_range + self.calc_step:
+        while previous_range < maximum_range:
             _flag = TrajFlag.NONE
 
             if range_vector.x >= next_wind_range:
@@ -264,19 +269,22 @@ class TrajectoryCalc:
                         break
 
             previous_mach = velocity / mach
+            previous_range = range_vector.x
 
             #region Ballistic calculation step
-            delta_time = self.calc_step / velocity_vector.x
+            #delta_time = self.calc_step / velocity_vector.x
+            delta_time = self.calc_step
             velocity_adjusted = velocity_vector - wind_vector
             velocity = velocity_adjusted.magnitude()
             drag = density_factor * velocity * self.drag_by_mach(velocity / mach)
             velocity_vector -= (velocity_adjusted * drag - self.gravity_vector) * delta_time
-            delta_range_vector = Vector(self.calc_step,
+            delta_range_vector = Vector(velocity_vector.x * delta_time,
                                         velocity_vector.y * delta_time,
                                         velocity_vector.z * delta_time)
             range_vector += delta_range_vector
             velocity = velocity_vector.magnitude()
-            time += delta_range_vector.magnitude() / velocity
+            #time += delta_range_vector.magnitude() / velocity
+            time += delta_time
 
             if velocity < cMinimumVelocity or range_vector.y < cMaximumDrop:
                 break
