@@ -5,6 +5,7 @@
 import math
 from dataclasses import dataclass
 from typing import NamedTuple
+from enum import IntEnum
 
 from .drag_model import DragDataPoint
 from .conditions import Atmo, Shot, Wind
@@ -18,7 +19,10 @@ __all__ = (
     'get_global_use_powder_sensitivity',
     'set_global_max_calc_step_size',
     'set_global_use_powder_sensitivity',
-    'reset_globals'
+    'reset_globals',
+    'get_calcMethod',
+    'set_calcMethod',
+    'CalcMethod',
 )
 
 cZeroFindingAccuracy = 0.000005
@@ -30,6 +34,17 @@ cGravityConstant = -32.17405
 _globalUsePowderSensitivity = False
 _globalMaxCalcStepSize = Distance.Foot(0.5)
 
+class CalcMethod(IntEnum):
+    Euler = 1
+    RK_dt = 2
+    RK_dx = 3
+
+_calcMethod = CalcMethod.Euler
+def get_calcMethod():
+    return _calcMethod
+def set_calcMethod(method: CalcMethod):
+    global _calcMethod
+    _calcMethod = method
 
 def get_global_max_calc_step_size() -> Distance:
     return _globalMaxCalcStepSize
@@ -317,24 +332,71 @@ class TrajectoryCalc:
 
             previous_mach = velocity / mach
 
-            # region Ballistic calculation step (point-mass)
-            # Time step is set to advance bullet calc_step distance along x axis
-            delta_time = self.calc_step / velocity_vector.x
-            # Air resistance seen by bullet is ground velocity minus wind velocity relative to ground
-            velocity_adjusted = velocity_vector - wind_vector
-            velocity = velocity_adjusted.magnitude()  # Velocity relative to air
-            # Drag is a function of air density and velocity relative to the air
-            drag = density_factor * velocity * self.drag_by_mach(velocity / mach)
-            # Bullet velocity changes due to both drag and gravity
-            velocity_vector -= (velocity_adjusted * drag - self.gravity_vector) * delta_time
-            # Bullet position changes by velocity times the time step
-            delta_range_vector = Vector(self.calc_step,
-                                        velocity_vector.y * delta_time,
-                                        velocity_vector.z * delta_time)
-            # Update the bullet position
-            range_vector += delta_range_vector
-            velocity = velocity_vector.magnitude()  # Velocity relative to ground
-            time += delta_range_vector.magnitude() / velocity
+            if _calcMethod == CalcMethod.Euler:
+                # region Ballistic calculation step (point-mass)
+                # region Euler integration
+                if drag==0: print('Running Euler integration...')
+                # Air resistance seen by bullet is ground velocity minus wind velocity relative to ground
+                velocity_adjusted = velocity_vector - wind_vector
+                velocity = velocity_adjusted.magnitude()  # Velocity relative to air
+                # Drag is a function of air density and velocity relative to the air
+                drag = density_factor * velocity * self.drag_by_mach(velocity / mach)
+                # Time step is set to advance bullet calc_step distance along x axis
+                delta_time = self.calc_step / velocity_vector.x
+                # Bullet velocity changes due to both drag and gravity
+                velocity_vector -= (velocity_adjusted * drag - self.gravity_vector) * delta_time
+                # Bullet position changes by velocity times the time step
+                delta_range_vector = Vector(self.calc_step,
+                                            velocity_vector.y * delta_time,
+                                            velocity_vector.z * delta_time)
+                # Update the bullet position
+                range_vector += delta_range_vector
+                velocity = velocity_vector.magnitude()  # Velocity relative to ground
+                time += delta_range_vector.magnitude() / velocity
+                # endregion
+            elif _calcMethod == CalcMethod.RK_dt:
+                # region RK4 time step
+                if drag==0: print('Running RK4 dt integration...')
+                delta_time = self.calc_step / velocity_vector.x
+                drag = density_factor * self.drag_by_mach(velocity / mach)
+                def f(v):  # dv/dt
+                    nonlocal drag
+                    relative_v = v - wind_vector
+                    return -drag * relative_v.magnitude() * relative_v + self.gravity_vector
+                k1v = f(velocity_vector)
+                k2v = f(velocity_vector + 0.5 * delta_time * k1v)
+                k3v = f(velocity_vector + 0.5 * delta_time * k2v)
+                k4v = f(velocity_vector + delta_time * k3v)
+                k1x = velocity_vector
+                k2x = velocity_vector + 0.5 * delta_time * k1v
+                k3x = velocity_vector + 0.5 * delta_time * k2v
+                k4x = velocity_vector + delta_time * k3v
+                velocity_vector += (k1v + 2*k2v + 2*k3v + k4v) * (delta_time/6)
+                range_vector += (k1x + 2*k2x + 2*k3x + k4x) * (delta_time/6)
+                time += delta_time
+                velocity = velocity_vector.magnitude()  # Velocity relative to ground
+                # endregion
+            elif _calcMethod == CalcMethod.RK_dx:
+                # region RK4 distance step
+                if drag==0: print('Running RK4 dx integration...')
+                dx = self.calc_step
+                drag = density_factor * self.drag_by_mach(velocity / mach)
+                def f(v): # dv/dx
+                    nonlocal drag
+                    relative_v = v - wind_vector
+                    return (-drag * relative_v.magnitude() * relative_v + self.gravity_vector) * (1/v.x)
+                k1v = f(velocity_vector)
+                k2v = f(velocity_vector + 0.5 * dx * k1v)
+                k3v = f(velocity_vector + 0.5 * dx * k2v)
+                k4v = f(velocity_vector + dx * k3v)
+                velocity_vector += (k1v + 2*k2v + 2*k3v + k4v) * (dx/6)
+                range_vector += Vector(dx, dx * velocity_vector.y /velocity_vector.x, dx * velocity_vector.z /velocity_vector.x)
+                velocity = velocity_vector.magnitude()  # Velocity relative to ground
+                time += dx / velocity_vector.x  # TODO: Should divide by average velocity over step
+                #endregion
+            else:
+                print(f'Unknown calcMethod {_calcMethod}')
+                break
 
             if velocity < cMinimumVelocity or range_vector.y < cMaximumDrop:
                 break
