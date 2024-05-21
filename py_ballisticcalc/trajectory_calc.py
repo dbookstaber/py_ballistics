@@ -368,20 +368,21 @@ class TrajectoryCalc:
                 k3v = f(velocity_vector + 0.5 * delta_time * k2v)
                 k4v = f(velocity_vector + delta_time * k3v)
                 k1x = velocity_vector
-                k2x = velocity_vector + 0.5 * delta_time * k1v
-                k3x = velocity_vector + 0.5 * delta_time * k2v
-                k4x = velocity_vector + delta_time * k3v
+                k2x = velocity_vector + 0.5 * delta_time * k1x
+                k3x = velocity_vector + 0.5 * delta_time * k2x
+                k4x = velocity_vector + delta_time * k3x
                 velocity_vector += (k1v + 2*k2v + 2*k3v + k4v) * (delta_time/6)
                 range_vector += (k1x + 2*k2x + 2*k3x + k4x) * (delta_time/6)
                 time += delta_time
                 velocity = velocity_vector.magnitude()  # Velocity relative to ground
+                drag *= velocity
                 # endregion
             elif _calcMethod == CalcMethod.RK_dx:
                 # region RK4 distance step
                 if drag==0: print('Running RK4 dx integration...')
                 dx = self.calc_step
                 drag = density_factor * self.drag_by_mach(velocity / mach)
-                def f(v): # dv/dx
+                def f(v):  # dv/dx
                     nonlocal drag
                     relative_v = v - wind_vector
                     return (-drag * relative_v.magnitude() * relative_v + self.gravity_vector) * (1/v.x)
@@ -389,10 +390,24 @@ class TrajectoryCalc:
                 k2v = f(velocity_vector + 0.5 * dx * k1v)
                 k3v = f(velocity_vector + 0.5 * dx * k2v)
                 k4v = f(velocity_vector + dx * k3v)
+                def g(v):  # d_range/dx
+                    return v * (1 / v.x)
+                k1y = g(velocity_vector)
+                k2y = g(velocity_vector + 0.5 * dx * k1y)
+                k3y = g(velocity_vector + 0.5 * dx * k2y)
+                k4y = g(velocity_vector + dx * k3y)
+                def t(vx):  # dt/dx
+                    return 1/vx
+                k1t = t(velocity_vector.x)
+                k2t = t(velocity_vector.x + 0.5 * dx * k1t)
+                k3t = t(velocity_vector.x + 0.5 * dx * k2t)
+                k4t = t(velocity_vector.x + dx * k3t)
                 velocity_vector += (k1v + 2*k2v + 2*k3v + k4v) * (dx/6)
-                range_vector += Vector(dx, dx * velocity_vector.y /velocity_vector.x, dx * velocity_vector.z /velocity_vector.x)
+                delta_range_vector = (k1y + 2*k2y + 2*k3y + k4y) * (dx/6)
+                range_vector += delta_range_vector
+                time += (k1t + 2*k2t + 2*k3t + k4t) * (dx/6)
                 velocity = velocity_vector.magnitude()  # Velocity relative to ground
-                time += dx / velocity_vector.x  # TODO: Should divide by average velocity over step
+                drag *= velocity
                 #endregion
             else:
                 print(f'Unknown calcMethod {_calcMethod}')
