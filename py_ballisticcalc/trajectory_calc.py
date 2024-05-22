@@ -6,6 +6,7 @@ import math
 from dataclasses import dataclass
 from typing import NamedTuple
 from enum import IntEnum
+from .logger import logger
 
 from .drag_model import DragDataPoint
 from .conditions import Atmo, Shot, Wind
@@ -23,6 +24,7 @@ __all__ = (
     'get_calcMethod',
     'set_calcMethod',
     'CalcMethod',
+    'Vector'
 )
 
 cZeroFindingAccuracy = 0.000005
@@ -34,17 +36,18 @@ cGravityConstant = -32.17405
 _globalUsePowderSensitivity = False
 _globalMaxCalcStepSize = Distance.Foot(0.5)
 
+# region CalcMethod
 class CalcMethod(IntEnum):
     Euler = 1
     RK_dt = 2
     RK_dx = 3
-
 _calcMethod = CalcMethod.Euler
 def get_calcMethod():
     return _calcMethod
 def set_calcMethod(method: CalcMethod):
     global _calcMethod
     _calcMethod = method
+# endregion CalcMethod
 
 def get_global_max_calc_step_size() -> Distance:
     return _globalMaxCalcStepSize
@@ -332,17 +335,17 @@ class TrajectoryCalc:
 
             previous_mach = velocity / mach
 
+            # region Ballistic calculation step (point-mass)
             if _calcMethod == CalcMethod.Euler:
-                # region Ballistic calculation step (point-mass)
                 # region Euler integration
-                if drag==0: print('Running Euler integration...')
+                # Time step is set to advance bullet calc_step distance along x axis
+                delta_time = self.calc_step / velocity_vector.x
+                if drag==0: logger.info(f'Running Euler integration with initial time-step {delta_time}...')
                 # Air resistance seen by bullet is ground velocity minus wind velocity relative to ground
                 velocity_adjusted = velocity_vector - wind_vector
                 velocity = velocity_adjusted.magnitude()  # Velocity relative to air
                 # Drag is a function of air density and velocity relative to the air
                 drag = density_factor * velocity * self.drag_by_mach(velocity / mach)
-                # Time step is set to advance bullet calc_step distance along x axis
-                delta_time = self.calc_step / velocity_vector.x
                 # Bullet velocity changes due to both drag and gravity
                 velocity_vector -= (velocity_adjusted * drag - self.gravity_vector) * delta_time
                 # Bullet position changes by velocity times the time step
@@ -356,8 +359,8 @@ class TrajectoryCalc:
                 # endregion
             elif _calcMethod == CalcMethod.RK_dt:
                 # region RK4 time step
-                if drag==0: print('Running RK4 dt integration...')
                 delta_time = self.calc_step / velocity_vector.x
+                if drag==0: print(f'Running RK4 dt integration with initial time-step {delta_time}...')
                 drag = density_factor * self.drag_by_mach(velocity / mach)
                 def f(v):  # dv/dt
                     nonlocal drag
@@ -379,8 +382,8 @@ class TrajectoryCalc:
                 # endregion
             elif _calcMethod == CalcMethod.RK_dx:
                 # region RK4 distance step
-                if drag==0: print('Running RK4 dx integration...')
                 dx = self.calc_step
+                if drag==0: logger.info(f'Running RK4 integration with dx={dx}...')
                 drag = density_factor * self.drag_by_mach(velocity / mach)
                 def f(v):  # dv/dx
                     nonlocal drag
@@ -403,8 +406,7 @@ class TrajectoryCalc:
                 k3t = t(velocity_vector.x + 0.5 * dx * k2t)
                 k4t = t(velocity_vector.x + dx * k3t)
                 velocity_vector += (k1v + 2*k2v + 2*k3v + k4v) * (dx/6)
-                delta_range_vector = (k1y + 2*k2y + 2*k3y + k4y) * (dx/6)
-                range_vector += delta_range_vector
+                range_vector += (k1y + 2*k2y + 2*k3y + k4y) * (dx/6)
                 time += (k1t + 2*k2t + 2*k3t + k4t) * (dx/6)
                 velocity = velocity_vector.magnitude()  # Velocity relative to ground
                 drag *= velocity
