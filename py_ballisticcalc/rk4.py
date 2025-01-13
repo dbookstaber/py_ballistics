@@ -1,6 +1,5 @@
 # type: ignore
 
-# TODO: Do we really have to reimport everything?
 import math
 import warnings
 from dataclasses import dataclass, field
@@ -8,12 +7,11 @@ from typing_extensions import Union, List
 
 from py_ballisticcalc.interface import Calculator
 from py_ballisticcalc.vector import Vector
-from py_ballisticcalc.trajectory_calc import (TrajectoryCalc, Config,
+from py_ballisticcalc.trajectory_calc import (TrajectoryCalc,
                                               create_trajectory_row,
                                               _TrajectoryDataFilter, _WindSock)
 from py_ballisticcalc.exceptions import RangeError
 from py_ballisticcalc.conditions import Shot
-from py_ballisticcalc.munition import Ammo
 from py_ballisticcalc.trajectory_data import TrajectoryData, HitResult, TrajFlag
 from py_ballisticcalc.unit import Angular, Distance, PreferredUnits
 from py_ballisticcalc.interface_config import create_interface_config
@@ -27,11 +25,10 @@ __all__ = (
 class RK4TrajectoryCalc(TrajectoryCalc):
     """Computes trajectory using Runge-Kutta 4th order method"""
 
-    # TODO: Is init() and call to parent init() necessary or correct?
-    def __init__(self, ammo: Ammo, _config: Config):
-        super().__init__(ammo, _config)
-
-    # TODO David: Quantize or interpolate TrajectoryData to desired distance steps
+    # David TODO:
+    # 1. Interpolate TrajectoryData to desired distance steps
+    # 2. Use fifth order to calculate error estimate
+    # 3. Optionally automate step size adjustment to maximize performance necessary for desired accuracy
     def _trajectory(self, shot_info: Shot, maximum_range: float, step: float,
                     filter_flags: Union[TrajFlag, int], time_step: float = 0.0) -> List[TrajectoryData]:
         """Calculate trajectory for specified shot
@@ -114,7 +111,6 @@ class RK4TrajectoryCalc(TrajectoryCalc):
             km = density_factor * self.drag_by_mach(relative_velocity.magnitude() / mach)
 
             def f(v):  # dv/dt
-                # nonlocal km  # TODO: should not use nonlocal cause we don't have closure
                 # Bullet velocity changes due to both drag and gravity
                 return self.gravity_vector - km * v * v.magnitude()
 
