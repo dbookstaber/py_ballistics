@@ -1,7 +1,7 @@
 import os
 from unittest import TestCase
 from py_ballisticcalc import (basicConfig, PreferredUnits, Unit, loadMixedUnits, loadMetricUnits, loadImperialUnits,
-                              get_global_max_calc_step_size, reset_globals)
+                              reset_globals)
 
 ASSETS_DIR = os.path.join(
     os.path.dirname(
@@ -17,10 +17,9 @@ class TestConfigLoader(TestCase):
             self.assertEqual(PreferredUnits.distance, Unit.Yard)
 
         with self.subTest("manual"):
-            basicConfig(max_calc_step_size=Unit.Meter(0.3), preferred_units={
+            basicConfig(preferred_units={
                 'distance': Unit.Meter
             })
-            self.assertEqual(get_global_max_calc_step_size().units, Unit.Meter)
             self.assertEqual(PreferredUnits.distance, Unit.Meter)
 
         with self.subTest("imperial"):

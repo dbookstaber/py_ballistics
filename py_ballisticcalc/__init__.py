@@ -87,40 +87,30 @@ def _load_config(filepath=None, suppress_warnings=False):
                     PreferredUnits.set(**preferred_units)
                 else:
                     if not suppress_warnings:
-                        logger.warning("Config has not `pybc.preferred_units` section")
+                        logger.warning("Config has no `pybc.preferred_units` section")
 
                 if calculator := _pybc.get('calculator'):
-                    if max_calc_step_size := calculator.get('max_calc_step_size'):
-                        try:
-                            _val = max_calc_step_size.get("value")
-                            _units = Unit[max_calc_step_size.get("units")]
-                            set_global_max_calc_step_size(_units(_val))
-                        except (KeyError, TypeError, ValueError):
-                            if not suppress_warnings:
-                                logger.warning("Wrong max_calc_step_size units or value")
+                    pass
                 else:
                     if not suppress_warnings:
-                        logger.warning("Config has not `pybc.calculator` section")
+                        logger.warning("Config has no `pybc.calculator` section")
             else:
                 if not suppress_warnings:
-                    logger.warning("Config has not `pybc` section")
+                    logger.warning("Config has no `pybc` section")
 
     logger.debug("Calculator globals and PreferredUnits load success")
 
 
 def _basic_config(filename=None,
-                  max_calc_step_size: Optional[Union[float, Distance]] = None,
                   preferred_units: Optional[Dict[str, Unit]] = None, suppress_warnings=False):
     """
     Method to load preferred units from file or Mapping
     """
-    if filename and (preferred_units or max_calc_step_size):
+    if filename and (preferred_units):
         raise ValueError("Can't use preferred_units and config file at same time")
-    if not filename and (preferred_units or max_calc_step_size):
+    if not filename and (preferred_units):
         if preferred_units:
             PreferredUnits.set(**preferred_units)
-        if max_calc_step_size:
-            set_global_max_calc_step_size(max_calc_step_size)
     else:
         # trying to load definitions from pybc.toml
         _load_config(filename, suppress_warnings)
@@ -161,8 +151,6 @@ __all__ = [
     'TrajectoryCalc',
     'Vector',
     "InterfaceConfigDict",
-    'get_global_max_calc_step_size',
-    'set_global_max_calc_step_size',
     'reset_globals',
     'DragModel',
     'DragDataPoint',

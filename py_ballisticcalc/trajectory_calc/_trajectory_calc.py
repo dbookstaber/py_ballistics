@@ -37,14 +37,14 @@ class CurvePoint(NamedTuple):
 
 # Define the NamedTuple to match the config structure
 class Config(NamedTuple):
-    max_calc_step_size_feet: float
-    chart_resolution: float
-    cZeroFindingAccuracy: float
-    cMinimumVelocity: float
-    cMaximumDrop: float
-    cMaxIterations: int
     cGravityConstant: float
+    cMaxStepSize: float
+    cZeroFindingAccuracy: float
+    cMaxIterations: int
+    cMinimumVelocity: float
     cMinimumAltitude: float
+    cMaximumDrop: float
+    chart_resolution: float
 
 
 class _TrajectoryDataFilter:
@@ -209,12 +209,12 @@ class TrajectoryCalc:
     def get_calc_step(self, step: float = 0) -> float:
         """Keep step under max_calc_step_size
         :param step: proposed step size
-        :return: step size for calculations (in feet)
+        :return: step size for calculations (in seconds)
         """
-        preferred_step = self._config.max_calc_step_size_feet
+        preferred_step = self._config.cMaxStepSize
         if step == 0:
-            return preferred_step / 2.0
-        return min(step, preferred_step) / 2.0
+            return preferred_step
+        return min(step, preferred_step)
 
     def trajectory(self, shot_info: Shot, max_range: Distance, dist_step: Distance,
                    extra_data: bool = False, time_step: float = 0.0) -> List[TrajectoryData]:

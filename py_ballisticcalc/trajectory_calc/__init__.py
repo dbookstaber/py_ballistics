@@ -1,4 +1,4 @@
-"""Bootstrap to load binary TrajectoryCalc, Vector extensions"""
+"""Bootstrap to load binary TrajectoryCalc extensions"""
 from typing_extensions import Union, Final
 
 from py_ballisticcalc.unit import Distance, PreferredUnits
@@ -14,35 +14,27 @@ from py_ballisticcalc.trajectory_calc._trajectory_calc import (
     _WindSock
 )
 
-cZeroFindingAccuracy: Final[float] = 0.000005
-cMinimumVelocity: Final[float] = 50.0
-cMaximumDrop: Final[float] = -15000
-cMaxIterations: Final[int] = 20
-cGravityConstant: Final[float] = -32.17405
-cMinimumAltitude: Final[float] = -1410.748  # ft
+cGravityConstant: Final[float] = -32.17405  # ft/s^2
 
-_globalChartResolution: float = 0.2  # ft
-_globalUsePowderSensitivity = False
-_globalMaxCalcStepSizeFeet: float = 0.5
+#region Calculator settings
+cMaxStepSize: Final[float] = 0.1  # Max integration step size in seconds
+cMaxIterations: Final[int] = 20  # Max iterations to find TrajectoryCalc.zero_angle()
+cZeroFindingAccuracy: Final[float] = 0.000005  # Vertical error in ft at zero distance
+#endregion
 
+#region Settings that control how far ballistic trajectory is calculated
+cMinimumVelocity: Final[float] = 50.0  # fps
+cMinimumAltitude: Final[float] = -1500.0  # ft above sea level
+cMaximumDrop: Final[float] = -15000.0  # ft from firing altitude
+#endregion
 
-def get_global_max_calc_step_size() -> Distance:
-    return PreferredUnits.distance(Distance.Foot(_globalMaxCalcStepSizeFeet))
-
+_globalUsePowderSensitivity: bool = False
+_globalChartResolution: float = 0.2  # Feet
 
 def reset_globals() -> None:
     # pylint: disable=global-statement
-    global _globalUsePowderSensitivity, _globalMaxCalcStepSizeFeet
+    global _globalUsePowderSensitivity
     _globalUsePowderSensitivity = False
-    _globalMaxCalcStepSizeFeet = 0.5
-
-
-def set_global_max_calc_step_size(value: Union[float, Distance]) -> None:
-    # pylint: disable=global-statement
-    global _globalMaxCalcStepSizeFeet
-    if (_value := PreferredUnits.distance(value)).raw_value <= 0:
-        raise ValueError("_globalMaxCalcStepSize have to be > 0")
-    _globalMaxCalcStepSizeFeet = _value >> Distance.Foot
 
 
 try:
@@ -56,15 +48,14 @@ except ImportError as err:
 
 __all__ = (
     'TrajectoryCalc',
-    'get_global_max_calc_step_size',
-    'set_global_max_calc_step_size',
     'reset_globals',
+    'cGravityConstant',
+    'cMaxStepSize',
+    'cMaxIterations',
     'cZeroFindingAccuracy',
     'cMinimumVelocity',
-    'cMaximumDrop',
-    'cMaxIterations',
-    'cGravityConstant',
     'cMinimumAltitude',
+    'cMaximumDrop',
     'Config',
     'calculate_energy',
     'calculate_ogw',
