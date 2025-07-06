@@ -196,8 +196,8 @@ class SciPyIntegrationEngine(BaseIntegrationEngine[SciPyEngineConfigDict]):
                                method='bounded')
 
         if not res.success:
-            raise ZeroFindingError(note=f"Could not find maximum range: {res.message}")
-        logger.debug(f".find_max_range required {res.nfev} trajectory calculations")
+            raise OutOfRangeError(Distance.Foot(0), note=res.message)
+        logger.debug(f"SciPy.find_max_range required {res.nfev} trajectory calculations")
         angle_at_max_rad = res.x
         max_range_ft = -res.fun  # Negate because we minimized the negative range
         return Distance.Feet(max_range_ft), Angular.Radian(angle_at_max_rad)

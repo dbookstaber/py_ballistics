@@ -93,18 +93,21 @@ class RangeError(RuntimeError):
 
 class OutOfRangeError(RuntimeError):
     """
-    Exception raised when the requested distance exceeds the maximum possible range for the shot.
+    Exception raised when the requested distance is outside the possible range for the shot.
     Contains:
     - The requested distance
-    - The maximum achievable range
+    - Optionally, the maximum achievable range
     - Optionally, the look-angle
     """
-    def __init__(self, requested_distance: 'Distance', max_range: 'Distance', look_angle: Optional['Angular'] = None):
+    def __init__(self, requested_distance: 'Distance', max_range: Optional['Distance'] = None, look_angle: Optional['Angular'] = None,
+                 note: str = ""):
         from py_ballisticcalc.unit import PreferredUnits
         self.requested_distance = requested_distance
         self.max_range = max_range
         self.look_angle = look_angle
-        msg = (f"Requested distance {requested_distance << PreferredUnits.distance} "
-               f"exceeds maximum possible range {max_range << PreferredUnits.distance}"
-            + (f" with look-angle {look_angle << PreferredUnits.angular}" if (look_angle is not None and look_angle.raw_value) else ""))
+        msg = (f"Requested distance {requested_distance << PreferredUnits.distance}"
+            + (f" exceeds maximum possible range {max_range << PreferredUnits.distance}" if max_range is not None else "")
+            + (f" with look-angle {look_angle << PreferredUnits.angular}" if (look_angle is not None and look_angle.raw_value) else "")
+            + (f". {note}" if note else "")
+        )
         super().__init__(msg)
