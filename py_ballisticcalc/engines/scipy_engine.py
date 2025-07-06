@@ -124,7 +124,6 @@ def create_scipy_engine_config(interface_config: Optional[BaseEngineConfigDict] 
 class SciPyIntegrationEngine(BaseIntegrationEngine[SciPyEngineConfigDict]):
     """Integration engine using SciPy's solve_ivp for trajectory calculations."""
     HitZero: str = "Hit Zero"  # Special non-exceptional termination reason
-    VERTICAL_ANGLE_EPSILON_DEGREES: float = 1e-5  # Deviation around 90 degree look-angle to use vertical zero logic
 
     @override
     def __init__(self, _config: SciPyEngineConfigDict):
@@ -174,8 +173,8 @@ class SciPyIntegrationEngine(BaseIntegrationEngine[SciPyEngineConfigDict]):
             except RangeError as e:
                 if e.last_distance is None:
                     raise e
-                t = HitResult(shot_info, e.incomplete_trajectory,extra=True)
-            max_range = t.flag(TrajFlag.APEX).look_distance
+                t = HitResult(shot_info, e.incomplete_trajectory, extra=True)  # type: ignore[assignment]
+            max_range = t.flag(TrajFlag.APEX).look_distance  # type: ignore[attr-defined]
             return max_range, Angular.Radian(self.look_angle)
         #endregion Virtually vertical shot
 
@@ -191,9 +190,9 @@ class SciPyIntegrationEngine(BaseIntegrationEngine[SciPyEngineConfigDict]):
             return t.look_distance >> Distance.Foot
 
         res = minimize_scalar(lambda angle_rad: -range_for_angle(angle_rad),
-                               bounds=(max(self.look_angle, math.radians(angle_bracket_deg[0])),
+                               bounds=(float(max(self.look_angle, math.radians(angle_bracket_deg[0]))),
                                        math.radians(angle_bracket_deg[1])),
-                               method='bounded')
+                               method='bounded')  # type: ignore
 
         if not res.success:
             raise OutOfRangeError(Distance.Foot(0), note=res.message)
@@ -643,6 +642,7 @@ class SciPyIntegrationEngine(BaseIntegrationEngine[SciPyEngineConfigDict]):
         # endregion Find requested TrajectoryData points
 
         if termination_reason not in (None, self.HitZero):
+            assert termination_reason is not None  # for mypy
             raise RangeError(termination_reason, ranges)
 
         return ranges

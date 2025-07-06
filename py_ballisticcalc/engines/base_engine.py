@@ -296,6 +296,7 @@ class BaseIntegrationEngine(ABC, EngineProtocol[_BaseEngineConfigDictT]):
         twist (float): The twist rate of the barrel.
         gravity_vector (Vector): The gravity vector.
     """
+    VERTICAL_ANGLE_EPSILON_DEGREES: float = 1e-5  # Deviation from 90 degree look-angle to consider vertical
 
     barrel_azimuth: float
     barrel_elevation: float
@@ -382,17 +383,20 @@ class BaseIntegrationEngine(ABC, EngineProtocol[_BaseEngineConfigDictT]):
         self.muzzle_velocity = shot_info.ammo.get_velocity_for_temp(shot_info.atmo.powder_temp) >> Velocity.FPS
         self.stability_coefficient = self.calc_stability_coefficient(shot_info.atmo)
 
-    def find_max_range(self, shot_info: Shot, angle_bracket_deg: Tuple[float, float] = (0.1, 89.9)) -> Tuple[float, float]:
+    def find_max_range(self, shot_info: Shot, angle_bracket_deg: Tuple[float, float] = (0, 90)) -> Tuple[Distance, Angular]:
         """
         Finds the maximum horizontal range and the launch angle to reach it, via golden-section search.
 
         Args:
             shot_info (Shot): The shot information: gun, ammo, environment, look_angle.
             angle_bracket_deg (Tuple[float, float], optional): The angle bracket in degrees to search for the maximum range.
-                                                               Defaults to (0.1, 89.9).
+                                                               Defaults to (0, 90).
 
         Returns:
-            Tuple[float, float]: The maximum range in feet and the launch angle in radians to reach it.
+            Tuple[Distance, Angular]: The maximum range and the launch angle to reach it.
+
+        Raises:
+            ValueError: If the angle bracket excludes the look_angle.
         """
         restore_cMaximumDrop = None
         if self._config.cMaximumDrop:
@@ -448,7 +452,22 @@ class BaseIntegrationEngine(ABC, EngineProtocol[_BaseEngineConfigDictT]):
         if restore_cMaximumDrop is not None:
             self._config.cMaximumDrop = restore_cMaximumDrop
         logger.debug(f".find_max_range required {t_calls} trajectory calculations")
-        return max_range_ft, angle_at_max_rad
+        return Distance.Feet(max_range_ft), Angular.Radian(angle_at_max_rad)
+
+    def find_zero_angle(self, shot_info: Shot, distance: Distance, lofted: bool=False) -> Angular:
+        """
+        Finds the barrel elevation needed to hit sight line at a specific distance,
+            using Ridder's method.
+
+        Args:
+            shot_info (Shot): The shot information.
+            distance (Distance): The distance to the target.
+            lofted (bool, optional): If True, find the higher angle that hits the zero point.
+
+        Returns:
+            Angular: The required barrel elevation.
+        """
+        raise NotImplementedError("find_zero_angle not yet implemented in BaseIntegrationEngine.")
 
     def zero_angle(self, shot_info: Shot, distance: Distance) -> Angular:
         """
@@ -463,6 +482,17 @@ class BaseIntegrationEngine(ABC, EngineProtocol[_BaseEngineConfigDictT]):
         """
         self._init_trajectory(shot_info)
 
+        target_look_dist_ft = distance >> Distance.Foot
+
+        #region Edge cases
+        if abs(target_look_dist_ft) < self.calc_step:
+            raise ZeroFindingError(0, 0, Angular.Radian(self.look_angle),
+                    note=f"Target distance {target_look_dist_ft}ft too small for zeroing.")
+        if abs(self.look_angle - math.radians(90)) < self.VERTICAL_ANGLE_EPSILON_DEGREES:
+            # Virtually vertical shot
+            return Angular.Radian(self.look_angle)
+        #endregion Edge cases
+
         _cZeroFindingAccuracy = self._config.cZeroFindingAccuracy
         _cMaxIterations = self._config.cMaxIterations
 
@@ -470,7 +500,7 @@ class BaseIntegrationEngine(ABC, EngineProtocol[_BaseEngineConfigDictT]):
 
         iterations_count = 0
         previous_distance = 0.0
-        previous_error = 1e+10  # Very large number
+        previous_error = 9e9
         range_limit = False  # Flag to avoid 1st-order correction when instability detected
         zero_error = _cZeroFindingAccuracy * 2
 
