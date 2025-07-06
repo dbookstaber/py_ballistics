@@ -121,7 +121,7 @@ def create_scipy_engine_config(interface_config: Optional[BaseEngineConfigDict] 
 class SciPyIntegrationEngine(BaseIntegrationEngine[SciPyEngineConfigDict]):
     """Integration engine using SciPy's solve_ivp for trajectory calculations."""
     HitZero: str = "Hit Zero"  # Special non-exceptional termination reason
-    VERTICAL_ANGLE_EPSILON_DEGREES: float = 1e-6  # Deviation around 90 degree look-angle to use vertical zero logic
+    VERTICAL_ANGLE_EPSILON_DEGREES: float = 1e-5  # Deviation around 90 degree look-angle to use vertical zero logic
 
     @override
     def __init__(self, _config: SciPyEngineConfigDict):
@@ -290,10 +290,21 @@ class SciPyIntegrationEngine(BaseIntegrationEngine[SciPyEngineConfigDict]):
         """
         self._init_trajectory(shot_info)
 
+        target_look_dist_ft = distance >> Distance.Foot
+
+        #region Edge cases
+        if abs(target_look_dist_ft) < self.calc_step:
+            raise ZeroFindingError(0, 0, Angular.Radian(self.look_angle),
+                    note=f"Target distance {target_look_dist_ft}ft too small for zeroing.")
+        if abs(self.look_angle - math.radians(90)) < self.VERTICAL_ANGLE_EPSILON_DEGREES:
+            # Virtually vertical shot
+            return Angular.Radian(self.look_angle)
+        #endregion Edge cases
+
         _cZeroFindingAccuracy = self._config.cZeroFindingAccuracy
         _cMaxIterations = self._config.cMaxIterations
 
-        zero_distance = (distance >> Distance.Foot) * math.cos(self.look_angle)  # Horizontal distance
+        zero_distance = target_look_dist_ft * math.cos(self.look_angle)  # Horizontal distance
 
         iterations_count = 0
         previous_distance = 0.0
