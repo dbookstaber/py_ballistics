@@ -121,7 +121,7 @@ def create_scipy_engine_config(interface_config: Optional[BaseEngineConfigDict] 
 class SciPyIntegrationEngine(BaseIntegrationEngine[SciPyEngineConfigDict]):
     """Integration engine using SciPy's solve_ivp for trajectory calculations."""
     HitZero: str = "Hit Zero"  # Special non-exceptional termination reason
-    VERTICAL_ANGLE_EPSILON_DEGREES: float = 1e-6  # If look-angle is within this of 90 degrees, use vertical shot logic
+    VERTICAL_ANGLE_EPSILON_DEGREES: float = 1e-6  # Deviation around 90 degree look-angle to use vertical zero logic
 
     @override
     def __init__(self, _config: SciPyEngineConfigDict):
@@ -296,7 +296,6 @@ class SciPyIntegrationEngine(BaseIntegrationEngine[SciPyEngineConfigDict]):
         zero_distance = (distance >> Distance.Foot) * math.cos(self.look_angle)  # Horizontal distance
 
         iterations_count = 0
-        previous_elevation = self.barrel_elevation
         previous_distance = 0.0
         previous_error = 1e+10  # Very large number
         zero_error = _cZeroFindingAccuracy * 2  # Absolute value of vertical error in feet
@@ -336,23 +335,11 @@ class SciPyIntegrationEngine(BaseIntegrationEngine[SciPyEngineConfigDict]):
                     # raise ZeroFindingError(zero_error, iterations_count, Angular.Radian(self.barrel_elevation), 'Distance non-convergent.')
                     break
             elif zero_error > math.fabs(previous_error):  # Error is increasing, we are diverging
-                if self._config.relative_error_tolerance > 1.1e-13 or self._config.absolute_error_tolerance > 1.1e-13:
-                    # Tighten the error tolerance in the integrator and let's try again
-                    if self._config.relative_error_tolerance > 1.1e-13:
-                        self._config.relative_error_tolerance *= 0.1
-                    if self._config.absolute_error_tolerance > 1.1e-13:
-                        self._config.absolute_error_tolerance *= 0.1
-                    #print(f"Reducing error tolerances: rtol={self._config.relative_error_tolerance}\t atol={self._config.absolute_error_tolerance}")
-                    previous_error = 1e+10  # Reset previous error to a large value
-                    self.barrel_elevation = previous_elevation  # Keep the elevation that's closer to zero
-                    continue  # Recompute with new tolerances
-                # If error is increasing, we are diverging; stop to avoid infinite loop
                 # raise ZeroFindingError(zero_error, iterations_count, Angular.Radian(self.barrel_elevation), 'Error non-convergent.')
                 break
 
             previous_distance = current_distance
             previous_error = signed_error
-            previous_elevation = self.barrel_elevation
 
             if zero_error > _cZeroFindingAccuracy or math.fabs(current_distance - zero_distance) > 1:
                 # Adjust barrel elevation to close height at zero distance
