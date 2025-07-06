@@ -8,6 +8,7 @@ from py_ballisticcalc import (
     Calculator,
     BaseEngineConfigDict,
     RangeError,
+    ZeroFindingError,
     HitResult,
     Distance,
     DragModel,
@@ -96,3 +97,12 @@ def test_zero_degenerate(loaded_engine_instance):
     assert result_at_zero is not None
     assert result_at_zero.distance.raw_value == pytest.approx(distance.raw_value, abs=1e-2)
     assert result_at_zero.height >> Distance.Meter == pytest.approx(0, abs=1e-2)
+
+@pytest.mark.usefixtures("loaded_engine_instance")
+def test_zero_too_close(loaded_engine_instance):
+    """Test zero finding when initial shot is too close to make sense."""
+    distance = Distance.Meter(0)
+    shot = create_shot()
+    calc = Calculator(engine=loaded_engine_instance)
+    with pytest.raises(ZeroFindingError) as e:
+        calc.set_weapon_zero(shot, distance)

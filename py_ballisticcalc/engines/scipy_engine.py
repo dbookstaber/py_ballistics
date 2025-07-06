@@ -4,8 +4,11 @@ Uses SciPy's root_scalar to get specific (TrajFlag) trajectory points,
 Uses SciPy's minimize_scalar to .find_max_range() for any shot.
 
 TODO:
- * Preserve/cache find_max_range value for multiple find_zero_angle() calls
-    ... but have to determine whether any relevant shot parameters changed.
+ * Cache ._integrate() results across .find_zero_angle() and .find_max_range() calls.
+    ... but between calls would have to determine whether any relevant shot parameters changed.
+    * Store max_range, zero_angle, and even full cache in the shot_info?
+        * Confirm cache is valid with a single ._integrate check?
+        ... or handle any breaking change to Shot values to clear the cache?
 """
 import math
 import warnings
@@ -308,7 +311,7 @@ class SciPyIntegrationEngine(BaseIntegrationEngine[SciPyEngineConfigDict]):
 
         iterations_count = 0
         previous_distance = 0.0
-        previous_error = 1e+10  # Very large number
+        previous_error = 9e9
         zero_error = _cZeroFindingAccuracy * 2  # Absolute value of vertical error in feet
 
         while iterations_count < _cMaxIterations:
